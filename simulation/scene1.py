@@ -1,128 +1,118 @@
 from manim import *
+import numpy as np
 
-
-class Scene1():
+class GraphTransformation(ThreeDScene):
     def construct(self):
-
-        intro = Text("Exibit A : Prototype", font_size=90).set_color_by_gradient("#02AABD","#00CDAC")
-        self.play(Write(intro))
-        self.play(FadeOut(intro))
-        self.wait()
-
-        img = ImageMobject('esp.png')
-        img.scale(0.4)
+        # Configuration
+        num_nodes = 8
+        node_radius = 0.15
+        circle_radius = 2
         
-        node_big = Circle(radius=1.5)
-        node_big.set_fill(BLUE, opacity=0.5)
-        node_big.set_stroke(BLUE)
-        
-        node_small_right = Circle(radius=0.4)
-        node_small_right.set_fill(BLUE, opacity=0.5)
-        node_small_right.set_stroke(BLUE)
-        
-        node_small_left = Circle(radius=0.4)
-        node_small_left.set_fill(TEAL_E, opacity=0.5)
-        node_small_left.set_stroke(TEAL_E)
+        # Create 2D positions in a circle with slight z-variation
+        angles = np.linspace(0, 2*PI, num_nodes)
+        positions_2d = [
+            [circle_radius*np.cos(angle), circle_radius*np.sin(angle), 0]
+            for angle in angles
+        ]
 
-        node_small_right.shift(3 * RIGHT)
-        node_small_left.shift(3 * LEFT)
+        # Create 3D positions using improved distribution
+        golden_ratio = (1 + np.sqrt(5)) / 2
+        positions_3d = []
+        for i in range(num_nodes):
+            t = i / num_nodes
+            theta = 2 * PI * i * golden_ratio
+            phi = np.arccos(1 - 2 * t)
+            
+            x = circle_radius * np.sin(phi) * np.cos(theta)
+            y = circle_radius * np.sin(phi) * np.sin(theta)
+            z = circle_radius * np.cos(phi)
+            positions_3d.append([x, y, z])
 
-        # animate last
-        self.play(FadeIn(img)) # image appears
-        self.wait(2)
-        
-        node_big.surround(img) # circle around image
-        self.play(Create(node_big)) 
-        self.play(FadeOut(img)) # image out
-        
-        node_big_copy = node_big.copy()
-        self.play(Transform(node_big, node_small_right), Transform(node_big_copy, node_small_left)) # circle split
-        
-        node_a = Text("Node A", font_size=20).set_color_by_gradient("#33ccff","#ff00ff") # text over nodes
-        node_b = Text("Node B", font_size=20).set_color_by_gradient("#33ccff","#ff00ff")
+        # Create nodes with better visual style
+        nodes = VGroup(*[
+            Sphere(radius=node_radius, resolution=(16, 16)).set_color(BLUE).move_to(pos)
+            for pos in positions_2d
+        ])
 
-        node_a.shift(node_small_left.get_center() + UP * 1)
-        node_b.shift(node_small_right.get_center() + UP * 1)
+        # Create edges with better visual style
+        edges = VGroup()
+        for i in range(num_nodes):
+            for j in range(i + 1, num_nodes):
+                edge = Cylinder(
+                    radius=0.02,
+                    height=np.linalg.norm(
+                        np.array(positions_2d[i]) - np.array(positions_2d[j])
+                    )
+                ).set_color(GRAY_D)
+                
+                # Position and rotate edge to connect nodes
+                start, end = positions_2d[i], positions_2d[j]
+                mid = [(s + e) / 2 for s, e in zip(start, end)]
+                edge.move_to(mid)
+                
+                # Calculate rotation axis and angle
+                direction = np.array(end) - np.array(start)
+                axis = np.cross([0, 0, 1], direction)
+                angle = np.arccos(direction[2] / np.linalg.norm(direction))
+                if not np.allclose(axis, 0):
+                    edge.rotate(angle, axis)
+                
+                edges.add(edge)
 
-        self.play(Write(node_a))
-        self.play(Write(node_b)) # write NODE A and NOde B over nodes
+        # Initial setup
+        self.set_camera_orientation(phi=0, theta=-90*DEGREES)
+        self.renderer.camera.light_source.move_to(3*IN+7*OUT)
 
-        line = Line(node_small_right.get_center(), node_small_left.get_center())
-        # print(node_small_right.get_left())
-        self.play(Create(line))  # line from node a to nnode b
-        self.wait()
-
-        dashed_line_left = DashedLine(
-            node_small_left.get_center(),
-            node_small_left.get_center() + DOWN * 1
+        # Fade in the 2D graph with smoother timing
+        self.play(
+            LaggedStart(*[FadeIn(node) for node in nodes], lag_ratio=0.1),
+            run_time=2
         )
-        dashed_line_right = DashedLine(
-            node_small_right.get_center(),
-            node_small_right.get_center() + DOWN * 1
+        self.play(
+            LaggedStart(*[Create(edge) for edge in edges], lag_ratio=0.05),
+            run_time=3
         )
-
-        brace = DashedLine(dashed_line_left.get_end(), dashed_line_right.get_end()) # dashed line down from nodes
-
-        self.play(create(dashed_line_left), ShowCreationThenDestruction(dashed_line_right), Create(brace)) # dashed line from bove dashed lines
-        
-        dist = Text("Distance x between nodes", font_size=20)
-        dist.shift((dashed_line_left.get_end() + dashed_line_right.get_end())/2 + DOWN *1)
-        self.play(Create(dist))
-        self.wait(2)
-
-
-
-class Scene2():
-    def construct(self):
-        # Step 1: Display "TDOA" with gradient color
-        tdoa_title = Text("TDOA", font_size=50).set_color_by_gradient("#02AABD", "#00CDAC")
-        self.play(FadeIn(tdoa_title, scale=1.2))
-        self.wait(1)
-
-        # Step 2: Display a small definition of TDOA appearing from below
-        tdoa_def = Text("Time Difference of Arrival: The time delay between a sound reaching two sensors", font_size=24)
-        tdoa_def.shift(DOWN * 2)
-        self.play(tdoa_def.animate.shift(UP * 1.5), run_time=2)
-        self.wait(1)
-
-        self.clear()
-        # Step 3: Show the two nodes (Right first, then Left)
-        node_small_right = Circle(radius=0.4, color=BLUE).shift(3 * RIGHT)
-        node_small_left = Circle(radius=0.4, color=TEAL_E).shift(3 * LEFT)
-
-        label_right = Text("Sensor 1", font_size=20).next_to(node_small_right, DOWN)
-        label_left = Text("Sensor 2", font_size=20).next_to(node_small_left, DOWN)
-
-        self.play(FadeIn(node_small_right), Write(label_right))
         self.wait(0.5)
-        self.play(FadeIn(node_small_left), Write(label_left))
-        self.wait(1)
 
-        # Step 4: Show a timer using ValueTracker for smooth update
-        time_tracker = ValueTracker(0.00)  # Start at 0 seconds
-        timer_display = DecimalNumber(0.00, num_decimal_places=2, font_size=30)
-        timer_display.next_to(tdoa_title, DOWN * 1.5)
-        timer_display.add_updater(lambda m: m.set_value(time_tracker.get_value()))
-        self.add(timer_display)
+        # Smooth transition to 3D view with node movement
+        node_animations = [node.animate.move_to(pos) for node, pos in zip(nodes, positions_3d)]
+        self.move_camera(phi=75*DEGREES, theta=30*DEGREES, run_time=3)
+        self.play(*node_animations, run_time=3)
+        
+        # Update edges smoothly
+        edge_animations = []
+        edge_count = 0
+        for i in range(num_nodes):
+            for j in range(i + 1, num_nodes):
+                start, end = positions_3d[i], positions_3d[j]
+                mid = [(s + e) / 2 for s, e in zip(start, end)]
+                
+                # Calculate new height and rotation for edge
+                new_height = np.linalg.norm(np.array(end) - np.array(start))
+                direction = np.array(end) - np.array(start)
+                axis = np.cross([0, 0, 1], direction)
+                angle = np.arccos(direction[2] / np.linalg.norm(direction))
+                
+                edge = edges[edge_count]
+                edge_animations.append(
+                    edge.animate.move_to(mid)
+                        .set_height(new_height)
+                        .rotate(angle, axis)
+                )
+                edge_count += 1
 
-        # Step 5: Show different timestamps above each sensor
-        time_right = DecimalNumber(0.00, num_decimal_places=2, font_size=24).next_to(node_small_right, UP)
-        time_left = DecimalNumber(0.00, num_decimal_places=2, font_size=24).next_to(node_small_left, UP)
+        self.play(
+            *edge_animations,
+            run_time=3
+        )
 
-        self.play(FadeIn(time_right), FadeIn(time_left))
+        # Rotate the camera smoothly
+        self.begin_ambient_camera_rotation(rate=0.15)
+        self.wait(5)
 
-        # Step 6: Show a soundwave moving from right to left with an arrow
-        sound_wave = DashedLine(start=node_small_right.get_center(), end=node_small_left.get_center(), color=YELLOW)
-        wave_arrow = Arrow(node_small_right.get_center(), node_small_left.get_center(), buff=0.2, color=YELLOW)
+        # Update camera focal distance using set_camera_orientation
+        self.move_camera(focal_distance=5, run_time=2)
+        self.wait(3)
 
-        # Animate soundwave traveling & update timer smoothly
-        self.play(Create(sound_wave), Create(wave_arrow), 
-                  time_tracker.animate.set_value(0.10), 
-                  time_right.animate.set_value(0.00),
-                  run_time=1)
-
-        self.play(time_tracker.animate.set_value(0.20), 
-                  time_left.animate.set_value(0.10),
-                  run_time=1)
-
-        self.wait(2)
+        # Stop rotation
+        self.stop_ambient_camera_rotation()
